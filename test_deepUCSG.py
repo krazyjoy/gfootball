@@ -118,6 +118,7 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
     for s in range(len(states)):
         if v[i][s] > Max_vi:
             Max_vi = v[i][s]
+            print("Max_vi", Max_vi)
             try:
                 choose_action = Max_a[s]
             except:
@@ -128,6 +129,7 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
     ran = random.randint(1, 6)
     if ran == 1:
         action_i = random.randint(0, len(actions)-1)
+        print("random action")
         return (action_i, actions[action_i])
     else:
         return (choose_action, actions[choose_action])
@@ -147,7 +149,7 @@ if __name__ == "__main__":
 
     vk = np.zeros((len(states), len(actions)),dtype = np.int) #vk(s,a)
     total_numbers = np.zeros((len(states), len(actions), len(states)), dtype = np.int) # nk(s,a,s')
-    total_rewards = np.zeros((len(states), len(actions)), dtype = np.int) #maximin
+    total_rewards = np.zeros((len(states), len(actions)), dtype = np.float16) #maximin
     nk = np.ones((len(states), len(actions)), dtype = np.int) #nk(s,a)
 
 
@@ -169,14 +171,14 @@ if __name__ == "__main__":
         sess.close()
 
     all_tensors = st_i
-
+    action = random.randint(0, len(action_set) - 1)
     while True:
         
-        action = random.randint(0, len(action_set) - 1)
+        
         next_frame, reward, done, info = env.step(action)
 
         print("action",action)
-
+        
         next_net = create_network(next_frame,True)
 
 
@@ -202,7 +204,8 @@ if __name__ == "__main__":
         ac_i, action = maxminevi(states, action_set, 0.8, 0.8, 100, total_rewards, confidence_bound)
 
         vk[st_i, ac_i] =  vk[st_i, ac_i] + 1 #update vk(s,a)
-        total_rewards[st_i,ac_i] += int(reward) # 即時reward
+        print("reward", reward)
+        total_rewards[st_i,ac_i] += reward.astype(float) # 即時reward
         nk[st_i, ac_i] = max(1,  nk[st_i, ac_i] + 1) #update nk(s,a)
         total_numbers[st_i, ac_i, next_st_i] += 1 #update nk(s, a, s')
 
