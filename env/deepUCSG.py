@@ -8,14 +8,14 @@ import re
 import os
 
 class NN:
-    def __init__(self, env, batch_size = 100, pic_size=(72,96), num_frame_stack = 4,
+    def __init__(self, env, batch_size = 2, pic_size=(72,96,3), num_frame_stack = 1,
                 gamma = 0.95, action_map = None, optimizer_params = None, 
                 network_update_freq = 100,
 
     ):
         self.env = env
 
-        self.exp_history = ExperienceHistory(num_frame_stack = num_frame_stack, capacity = int(1e3), pic_size = pic_size)
+        self.exp_history = ExperienceHistory(num_frame_stack = num_frame_stack, capacity = int(10), pic_size = pic_size)
 
         self.playing_cache = ExperienceHistory(num_frame_stack=num_frame_stack,capacity = num_frame_stack * 5 + 10, pic_size =pic_size)
 
@@ -47,10 +47,16 @@ class NN:
 
         self.episode_counter = 0
 
+        self.actions = np.zeros((5,19))
+        self.states = np.zeros((50000)) # 0~500.00
 
-        #(4, 72, 96)
-        self.state_size = (self.num_frame_stack, ) + self.pic_size
+        self.vk = np.zeros((len(self.states), len(self.actions))) #vk(s,a)
+        self.total_numbers = np.zeros((len(self.states), len(self.actions), len(self.states))) # nk(s,a,s')
+        self.total_rewards = np.zeros((len(self.states), len(self.actions))) #maximin
+        self.nk = np.ones((len(self.states), len(self.actions))) #nk(s,a)
 
+    def AllStates():
+        state_list = []
 
     def play_episode(self):
         # train mode or play mode: store history
@@ -63,12 +69,26 @@ class NN:
 
         # env reset:
         first_frame = self.env.reset() # (72,96,3)
-        first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY) # (72,96)
+        #first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY) # (72,96)
         
         # create a memory space
         eh.start_new_episode(first_frame)
+        first_frame = np.expand_dims(first_frame, axis = 0)
+        print("first frame expands: ", first_frame.shape)
 
+
+
+        nn_state = self.create_network(tf.convert_to_tensor(first_frame, dtype = "float16"), trainable = True)
+        
+        nn_state = tf.reshape(nn_state, (nn_state.shape[1],))
+        print("nn_state.shape",nn_state.shape)
+
+        
+        delta = 0.01
+        T = 2000
         while True:
+            if self.global_counter == 2000:
+                break
             if np.random.rand() > 0.1:
                 action_idx = self.session.run(
                     self.best_action,
@@ -84,6 +104,9 @@ class NN:
             
             reward = 0
 
+
+            
+
             # skip frames = 1
             for _ in range(1):
                 observation, r, done, info = env.step(action)
@@ -94,7 +117,7 @@ class NN:
             total_reward += reward
             frames_in_episode += 1
 
-            observation = cv2.cvtColor(observation, cv2.COLOR_BGR2GRAY)
+            observation = np.expand_dims(observation, axis = 0)
             eh.add_experience(observation, action_idx, done, reward)
 
             if self.do_training:
@@ -110,6 +133,36 @@ class NN:
 
                 )
                 if train_cond:
+                    
+
+                    """ calculate confidence bound """
+                    delta_1 = delta/(2*len(self.states)*len(self.states)*len(self.actions)*np.log2(T))
+                    p_hat = self.total_numbers/np.clip(self.nk.reshape(len(self.states), len(self.actions), 1), 1, None)  #拆解
+                    r_hat = self.total_rewards / np.clip(self.vk, 1, None)
+                    upper_conf = 1
+                    lower_conf = 0
+
+                    # Update the confidence set
+                    #confidence_bound_1 = np.clip(np.sqrt((2*n_states*np.log(1/delta)/n_states))+ p_hat, 0, 1)         
+                    confidence_bound_1 = np.sqrt((2*len(self.states)*np.log(1/delta)/len(self.states)))+ p_hat
+                    confidence_bound_2_2 = np.clip(np.sqrt(np.log(6/delta_1)/(2*len(self.states)))+p_hat, None, np.sqrt(2*p_hat*(1-p_hat)*np.log(6/delta_1)/len(self.states)) + 7*np.log(6/delta_1)/(3*(len(self.states)-1))+p_hat)
+                    #confidence_bound_2_2 = np.clip(confidence_bound_2_2, 0, 1)
+                    a = np.sqrt(2*np.log(6/delta_1)/(len(self.states)-1))
+                    b = np.sqrt(p_hat*(1-p_hat))
+                    c1 = (a+b)**2
+                    c2 = (a-b)**2
+                    xr = np.clip((1+np.sqrt(1-4*c1))/2, (1-np.sqrt(1-4*c1))/2, 1)
+                    xl = np.clip((1+np.sqrt(1-4*c2))/2, 0 ,(1-np.sqrt(1-4*c2))/2)
+                    confidence_bound_2_1 = np.clip(xr, 0 ,xl)
+                    tmp = confidence_bound_1 + confidence_bound_2_2
+                    # print('confidencebound1', confidence_bound_1)
+                    # print('confidencebound2', confidence_bound_2_2)
+                    confidencebound = [ (tmp[i]) for i in range(0, len(tmp)) if tmp[i] not in tmp[:i] ]
+
+
+
+                    """ calculate confidence bound """
+
                     self.train() # calculate loss, update optimizer
 
                 
@@ -120,16 +173,15 @@ class NN:
                     return total_reward, frames_in_episode
 
 
-                
 
 
     
     def build_graph(self):
         """ init inputs for conv2d """
-        # (batach_size, 4, 72, 96)
-        input_dim_with_batch = (self.batch_size, self.num_frame_stack) + self.pic_size
+        # (batch_size, 4, 72, 96)
+        input_dim_with_batch = (self.batch_size, ) + self.pic_size
 
-        input_dim_general = (None, self.num_frame_stack) + self.pic_size #　(None, 4, 72, 96)
+        input_dim_general = (None, ) + self.pic_size #　(None, 4, 72, 96)
 
         self.input_prev_state = tf.placeholder(tf.float16, input_dim_general, "prev_state")
 
@@ -141,46 +193,51 @@ class NN:
 
         self.input_done_mask = tf.placeholder(tf.int32, self.batch_size, "done_mask")
 
+        
+        # self.input_state = tf.placeholder(tf.float16, (self.batch_size, ) + self.pic_size, "input_state")
+
+        # self.input_next_state = tf.placeholder(tf.float16,(self.batch_size, ) + self.pic_size, "next_input")
+        # all_states = tf.placeholder
         """ state action values: Vi """
         # # V[I][s]
 
-        with tf.variable_scope("fixed"):
-            qsa_targets = self.create_network(self.input_next_state, trainable = False)
+        # with tf.variable_scope("fixed"):
+        #     nn_next_state = self.create_network(self.input_next_state, trainable = False)
 
         with tf.variable_scope("train"):
-            qsa_estimates = self.create_network(self.input_prev_state, trainable = True)
-
+            nn_prev_state = self.create_network(self.input_prev_state, trainable = True)
+            
         # """ best actions: maxminevi: greatest vi """
-        self.best_action = tf.argmax(qsa_estimates, axis = 1)
-        
+        self.best_action = tf.convert_to_tensor(np.repeat(3,self.batch_size))
+
         not_done = tf.cast(tf.logical_not(tf.cast(self.input_done_mask, "bool")), "float16")
 
         """ calculate loss """
 
         """ optimizer """
 
-        print("nn output",qsa_targets.shape)
+        # q_target = tf.reduce_max(qsa_targets, -1) * self.gamma * not_done + self.input_reward
+        # # # select the chosen action from each row
+        # # # in numpy this is qsa_estimates[range(batchsize), self.input_actions]
+        # action_slice = tf.stack([tf.range(0, self.batch_size), self.input_actions], axis=1)
+        # q_estimates_for_input_action = tf.gather_nd(qsa_estimates, action_slice)
 
-        q_target = tf.reduce_max(qsa_targets, -1) * self.gamma * not_done + self.input_reward
-        # # select the chosen action from each row
-        # # in numpy this is qsa_estimates[range(batchsize), self.input_actions]
-        action_slice = tf.stack([tf.range(0, self.batch_size), self.input_actions], axis=1)
-        q_estimates_for_input_action = tf.gather_nd(qsa_estimates, action_slice)
+        # training_loss = tf.nn.l2_loss(q_target - q_estimates_for_input_action) / self.batch_size
 
-        training_loss = tf.nn.l2_loss(q_target - q_estimates_for_input_action) / self.batch_size
+        # optimizer = tf.train.AdamOptimizer(**(self.optimizer_params))
 
-        optimizer = tf.train.AdamOptimizer(**(self.optimizer_params))
-
-        reg_loss = tf.add_n(tf.losses.get_regularization_losses())
-        self.train_op = optimizer.minimize(reg_loss + training_loss)
+        # reg_loss = tf.add_n(tf.losses.get_regularization_losses())
+        # self.train_op = optimizer.minimize(reg_loss + training_loss)
 
         train_params = self.get_variables("train")
-        fixed_params = self.get_variables("fixed")
+        # fixed_params = self.get_variables("fixed")
 
 
-        # assert (len(train_params) == len(fixed_params))
-        self.copy_network_ops = [tf.assign(fixed_v, train_v)
-            for train_v, fixed_v in zip(train_params, fixed_params)]
+        # # assert (len(train_params) == len(fixed_params))
+
+        # 記住一個batch的output
+        # self.copy_network_ops = [tf.assign(fixed_v, train_v)
+        #     for train_v, fixed_v in zip(train_params, fixed_params)]
  
     
     def get_variables(self, scope):
@@ -191,38 +248,44 @@ class NN:
     
     def create_network(self, input, trainable):
         
-        print("create network input: ", input.shape) # (2, 4, 72, 96)
+        # input: (batch_size, num_frame_stack, 72, 96)
+        #input_t = tf.expand_dims(input, axis = -1)
+        input_t = input
         if trainable:
             wr = slim.l2_regularizer(self.regularization)
         else:
             wr = None
         
         # 將channel 放在最後一行
-        input_t = tf.transpose(input, [0,2,3,1])
+        #input_t = tf.transpose(input, [0,2,3,1]) # (batch_size, num_frames, pic_size[0], pic_size[1])
+
 
         net = slim.conv2d(input_t, 8, (7, 7), data_format="NHWC",
             activation_fn=tf.nn.relu, stride=3, weights_regularizer=wr, trainable=trainable)
-      
+        tf.print("tensor: ",net)
         net = slim.max_pool2d(net, 2, 2)
-        
+
         net = slim.conv2d(net, 16, (3, 3), data_format="NHWC",
             activation_fn=tf.nn.relu, weights_regularizer=wr, trainable=trainable)
-        
+
         net = slim.max_pool2d(net, 2, 2)
-        
+
         net = slim.flatten(net)
-        print(net.shape)
+
         net = slim.fully_connected(net, 256, activation_fn=tf.nn.relu,
             weights_regularizer=wr, trainable=trainable)
-        q_state_action_values = slim.fully_connected(net, self.dim_actions,
-            activation_fn=None, weights_regularizer=wr, trainable=trainable)
 
-        print("q state action vals: ", q_state_action_values.shape) # (2,19)
-        return q_state_action_values
+        # q_state_action_values = slim.fully_connected(net, self.dim_actions,
+        #     activation_fn=None, weights_regularizer=wr, trainable=trainable)
+
+        # print("q state action vals: ", q_state_action_values)
+
+        return net
 
     def update_target_network(self):
         # 將fixed_params指派給target_params
-        self.session.run(self.copy_network_ops)
+        #self.session.run(self.copy_network_ops)
+        return
 
     def train(self):
         """ input : state, action, state """
@@ -246,16 +309,16 @@ class NN:
         # total_numbers:
         # total_rewards:
         # s
-        #update optimizer, with optimizer.minimize(reg_loss + training_loss)
-        self.session.run([self.train_op], fd1) 
+        # update optimizer, with optimizer.minimize(reg_loss + training_loss)
+        # self.session.run([self.train_op], fd1) 
         """ output: VI """
 
         #action = maxminevi()
         #return action
 
 # to start training from scratch:
-load_checkpoint = True
-checkpoint_path = "data/checkpoint02"
+load_checkpoint = False
+checkpoint_path = "data/checkpoint03"
 train_episodes = 25
 save_freq_episodes = 1
 

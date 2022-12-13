@@ -2,10 +2,10 @@ import numpy as np
 
 class ExperienceHistory:
 
-    def __init__(self, num_frame_stack = 4,
-                capacity=int(1e5), pic_size=(72,96)
+    def __init__(self, num_frame_stack = 1,
+                capacity=int(10), pic_size=(72,96,3)
     ):
-        self.num_frame_stack = num_frame_stack # state is stack of num_frame_stack frames
+        self.num_frame_stack = 1 # state is stack of num_frame_stack frames
         self.capacity = capacity # I in UCSG
         self.pic_size = pic_size
         self.counter = 0
@@ -38,7 +38,8 @@ class ExperienceHistory:
         frame_idx = self.counter % self.max_frame_cache
 
         # 取 num_frame_stack 張 圖片, 利用frame_idx 取得stack中圖片
-        self.frame_window = np.repeat(frame_idx, self.num_frame_stack)  #np.repeat(1,5) => [1,1,1,1,1]
+        self.frame_window = np.repeat(frame_idx, 1)  #np.repeat(1,5) => [1,1,1,1,1]
+        print("init frame_window", self.frame_window)
         # memory space
         self.frames[frame_idx] = frame
         self.expecting_new_episode = False
@@ -46,7 +47,8 @@ class ExperienceHistory:
     def current_state(self):
         assert self.frame_window is not None, "do something first"
         # print(self.frames[self.frame_window].shape) (4,72,96)
-        return self.frames[self.frame_window]
+        #return self.frames[self.frame_window]
+        return self.frames[0]
 
     def add_experience(self, frame, action, done, reward):
         assert self.frame_window is not None, "start episode first"
@@ -54,14 +56,15 @@ class ExperienceHistory:
         # 取得新的 window index
         self.counter += 1
 
+        # i = i%I
         frame_idx = self.counter % self.max_frame_cache
         exp_idx = (self.counter - 1) % self.capacity
 
-        self.prev_states[exp_idx] = self.frame_window
+        self.prev_states[exp_idx] = self.frame_window # (capacity, num_frame)
         
         # 更新window
-        self.frame_window = np.append(self.frame_window[1:], frame_idx) # 每一次更新都捨棄window 第一個元素
-
+        #self.frame_window = np.append(self.frame_window[0], frame_idx) # 每一次更新都捨棄window 第一個元素
+        self.frame_window = frame_idx
         self.next_states[exp_idx] = self.frame_window 
         
         self.actions[exp_idx] = action
