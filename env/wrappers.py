@@ -98,7 +98,6 @@ class Simple115StateWrapper(gym.ObservationWrapper):
 
   def __init__(self, env, fixed_positions=False):
     """Initializes the wrapper.
-
     Args:
       env: an envorinment to wrap
       fixed_positions: whether to fix observation indexes corresponding to teams
@@ -118,7 +117,6 @@ class Simple115StateWrapper(gym.ObservationWrapper):
   @staticmethod
   def convert_observation(observation, fixed_positions):
     """Converts an observation into simple115 (or simple115v2) format.
-
     Args:
       observation: observation that the environment returns
       fixed_positions: Players and positions are always occupying 88 fields
@@ -129,7 +127,6 @@ class Simple115StateWrapper(gym.ObservationWrapper):
                        if it has less players).
                        If False, then the position of players from team2
                        will depend on number of players in team1).
-
     Returns:
       (N, 115) shaped representation, where N stands for the number of players
       being controlled.
@@ -272,6 +269,76 @@ class SingleAgentRewardWrapper(gym.RewardWrapper):
     return reward[0]
 
 
+class EasyRewardWrapper(gym.RewardWrapper):
+  """A wrapper that adds a dense checkpoint reward."""
+
+  def __init__(self, env):
+    gym.RewardWrapper.__init__(self, env)
+    self._collected_checkpoints = {}
+    self._num_checkpoints = 10
+    self._checkpoint_reward = 0.1
+
+  def reset(self):
+    self._collected_checkpoints = {}
+    return self.env.reset()
+
+  def get_state(self, to_pickle):
+    to_pickle['EasyRewardWrapper'] = self._collected_checkpoints
+    return self.env.get_state(to_pickle)
+
+  def set_state(self, state):
+    from_pickle = self.env.set_state(state)
+    self._collected_checkpoints = from_pickle['EasyRewardWrapper']
+    return from_pickle
+
+  def reward(self, reward):
+    observation = self.env.unwrapped.observation()
+    if observation is None:
+      return reward
+
+    assert len(reward) == len(observation)
+
+    for rew_index in range(len(reward)):
+      o = observation[rew_index]
+      if reward[rew_index] == 1:
+        reward[rew_index] += self._checkpoint_reward * (
+            self._num_checkpoints -
+            self._collected_checkpoints.get(rew_index, 0))
+        self._collected_checkpoints[rew_index] = self._num_checkpoints
+        continue
+
+      # Check if the active player has the ball.
+      if ('ball_owned_team' not in o or
+          o['ball_owned_team'] != 0 or
+          'ball_owned_player' not in o or
+          o['ball_owned_player'] != o['active']):
+        continue
+
+      while (self._collected_checkpoints.get(rew_index, 0) <
+             self._num_checkpoints):
+        x = o['left_team'][rew_index][0]
+        if x < -0.5:
+          break
+        reward[rew_index] += self._checkpoint_reward
+        self._collected_checkpoints[rew_index] = (
+            self._collected_checkpoints.get(rew_index, 0) + 1)
+      
+
+      # d = ((o['ball'][0] - 1) ** 2 + o['ball'][1] ** 2) ** 0.5
+      # while (self._collected_checkpoints.get(rew_index, 0) <
+      #        self._num_checkpoints):
+      #   if self._num_checkpoints == 1:
+      #     threshold = 0.99 - 0.8
+      #   else:
+      #     threshold = (1.02 - 0.8 / (self._num_checkpoints - 1) *
+      #                  self._collected_checkpoints.get(rew_index, 0))
+      #   if d > threshold:
+      #     break
+      #   reward[rew_index] += self._checkpoint_reward
+      #   self._collected_checkpoints[rew_index] = (
+      #       self._collected_checkpoints.get(rew_index, 0) + 1)
+    return reward
+
 class CheckpointRewardWrapper(gym.RewardWrapper):
   """A wrapper that adds a dense checkpoint reward."""
 
@@ -374,13 +441,11 @@ class FrameStack(gym.Wrapper):
 
 class MultiAgentToSingleAgent(gym.Wrapper):
   """Converts raw multi-agent observations to single-agent observation.
-
   It returns observations of the designated player on the team, so that
   using this wrapper in multi-agent setup is equivalent to controlling a single
   player. This wrapper is used for scenarios with control_all_players set when
   agent controls only one player on the team. It can also be used
   in a standalone manner:
-
   env = gfootball.env.create_environment(env_name='tests/multiagent_wrapper',
       number_of_left_players_agent_controls=11)
   observations = env.reset()

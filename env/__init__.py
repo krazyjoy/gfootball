@@ -28,12 +28,13 @@ def _process_reward_wrappers(env, rewards):
   assert 'scoring' in rewards.split(',')
   if 'checkpoints' in rewards.split(','):
     env = wrappers.CheckpointRewardWrapper(env)
+  if 'easy' in rewards.split(','):
+    env = wrappers.EasyRewardWrapper(env)
   return env
 
 
 def _process_representation_wrappers(env, representation, channel_dimensions):
   """Wraps with necessary representation wrappers.
-
   Args:
     env: A GFootball gym environment.
     representation: See create_environment.representation comment.
@@ -61,7 +62,6 @@ def _process_representation_wrappers(env, representation, channel_dimensions):
 def _apply_output_wrappers(env, rewards, representation, channel_dimensions,
                            apply_single_agent_wrappers, stacked):
   """Wraps with necessary wrappers modifying the output of the environment.
-
   Args:
     env: A GFootball gym environment.
     rewards: What rewards to apply.
@@ -104,7 +104,6 @@ def create_environment(env_name='',
                            observation_preprocessing.SMM_HEIGHT),
                        other_config_options={}):
   """Creates a Google Research Football environment.
-
   Args:
     env_name: a name of a scenario to run, e.g. "11_vs_11_stochastic".
       The list of scenarios can be found in directory "scenarios".
@@ -238,7 +237,6 @@ def create_remote_environment(
         observation_preprocessing.SMM_HEIGHT),
     include_rendering=False):
   """Creates a remote Google Research Football environment.
-
   Args:
     username: User name.
     token: User token.

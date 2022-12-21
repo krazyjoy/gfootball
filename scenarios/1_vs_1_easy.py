@@ -21,7 +21,7 @@ from . import *
 
 
 def build_scenario(builder):
-  builder.config().game_duration = 500
+  builder.config().game_duration = 100000
   builder.config().right_team_difficulty = 0.0
   builder.config().left_team_difficulty = 0.0
   builder.config().deterministic = False
