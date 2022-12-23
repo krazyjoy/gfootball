@@ -8,7 +8,7 @@ import re
 import os
 import random 
 from gfootball.env import football_action_set
-
+import matplotlib.pyplot as plt
 def create_network(input, trainable):
     input = input.astype("float16")
     # input: (batch_size, num_frame_stack, 72, 96)
@@ -80,12 +80,13 @@ def UCSG(states, actions, T, delta):
         return tmp
 
 def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共有I個vi
-    v = np.zeros((I, len(states)), dtype = np.int) # 計算v0 # (100,500)
+    v = np.zeros((I, len(states)), dtype = np.int64) # 計算v0 # (100,500)
     print("v shape", v.shape)
     print("pk: ",Pk.shape)
     print("states", states.shape)
     # 計算v1
 
+    ratio = 0.005
     for s in range(len(states)):
         Max = -1
         for a in range(len(actions)):
@@ -94,68 +95,84 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
                 Max = Sum
                 Max_a_1 = a
         val = total_rewards[s, Max_a_1] + Max
-        v[1][s] = (1-alpha) * val + alpha * v[0][s]
+        v[1][s] = ((1-alpha) * val + alpha * v[0][s]) * ratio
+    print("v[1][s]",v[1][s])    
 
     i = 2
-    print((max(v[i]) - min(v[i-1])) - (min(v[i]) - max(v[i-1])))
+    print((max(v[i]) - min(v[i-1])) - (min(v[i]) - max(v[i-1]))) # 0
     while ((max(v[i]) - min(v[i-1])) - (min(v[i]) - max(v[i-1]))) <= (1 - alpha) * gamma: 
-        Max_a = {}
+
+         # 選一個Pk(s,a)讓值最大。Pk(s,a)是一個一維array
+        Max_in = -1
         for s in range(len(states)):
-            Max = -1
             for a in range(len(actions)):
-                Sum = sum(Pk[s][a])
-                if Sum > Max:
-                    Max = Sum
-                    Max_a[s] = a
-            val = total_rewards[s, Max_a[s]] + Max
-            v[i][s] = (1-alpha) * val + alpha * v[i-1][s]
+                Sum = 0
+                for next_s in range(len(states)):
+                    Sum += Pk[s][a][next_s] * v[i-1][next_s]
+                if Sum > Max_in:
+                    Max_in = Sum
+                    Max_in_Pk_s = s
+                    Max_in_Pk_a = a
+        # 每個state都選一個action讓值最大
+        for s in range(len(states)):
+            Max_out = -1
+            for a in range(len(actions)):
+                val = total_rewards[s, a] + Max_in
+               
+                if val > Max_out:
+                    Max_out = val
+                    if st_i == s:
+                        Max_out_a = a
+                        choose_action = Max_out_a
+            # print("i-1",i-1)
+            # print("v[i-1][s]",v[i-1][s])
+            v[i][s] = ((1-alpha) * val + alpha * v[i-1][s]) * ratio
+
+    
         i += 1
         if i == I:
             i -= 1
             break
-
-    Max_vi = -999
-    for s in range(len(states)):
-        if v[i][s] > Max_vi:
-            Max_vi = v[i][s]
-            print("Max_vi", Max_vi)
-            try:
-                choose_action = Max_a[s]
-            except:
-                print("error")
-                choose_action = random.randint(0, len(actions)-1)
-                break
-    
-    ran = random.randint(1, 6)
-    if ran == 1:
+    print("v[i][s]",v[i][:5])
+    try:
+        return actions[choose_action]
+    except: # 一開始可能不會進到前面的while迴圈，所以直接回傳random的action
+        print('!')
         action_i = random.randint(0, len(actions)-1)
-        print("random action")
-        return (action_i, actions[action_i])
-    else:
-        return (choose_action, actions[choose_action])
+        return actions[action_i]
 
 
 
 
 if __name__ == "__main__":
 
-    action_set = football_action_set.get_action_set({'action_set': 'default'})
+    # set actions
+    actions = football_action_set.get_action_set({'action_set': 'default'})
+    actions_del = [18, 16, 15, 14, 13, 11, 10, 9, 0]
+    for idx in actions_del:
+        actions.pop(idx)
+    # num_players = 1
+    # actions = np.zeros((len(action_set), num_players))
 
-    num_players = 1
-    actions = np.zeros((len(action_set), num_players))
+    # all_actions = np.reshape(actions, -1)
 
-    all_actions = np.reshape(actions, -1)
-    states = np.zeros((500)) # 0~500.0
+    accu_reward = 0
+    draw_reward = []
+    draw_step = []
+    draw_step_ten = []
+    draw_reward_ten = []
 
-    vk = np.zeros((len(states), len(actions)),dtype = np.int) #vk(s,a)
-    total_numbers = np.zeros((len(states), len(actions), len(states)), dtype = np.int) # nk(s,a,s')
+    states = np.zeros((200)) # 0~500.0
+
+    vk = np.zeros((len(states), len(actions)),dtype = np.int64) #vk(s,a)
+    total_numbers = np.zeros((len(states), len(actions), len(states)), dtype = np.int64) # nk(s,a,s')
     total_rewards = np.zeros((len(states), len(actions)), dtype = np.float16) #maximin
-    nk = np.ones((len(states), len(actions)), dtype = np.int) #nk(s,a)
+    nk = np.ones((len(states), len(actions)), dtype = np.int64) #nk(s,a)
 
 
 
-    env = football_env.create_environment(env_name="5_vs_5", representation='pixels', render = True, 
-            rewards="checkpoints,scoring", number_of_left_players_agent_controls = 1
+    env = football_env.create_environment(env_name="1_vs_1_easy", representation='pixels', render = True, 
+            rewards="easy,scoring", number_of_left_players_agent_controls = 1
         )
     frame = env.reset()
     net = create_network(frame, True)
@@ -171,13 +188,21 @@ if __name__ == "__main__":
         sess.close()
 
     all_tensors = st_i
-    action = random.randint(0, len(action_set) - 1)
-    while True:
-        
-        
-        next_frame, reward, done, info = env.step(action)
+    ac_i = random.randint(0, len(actions) - 1)
+    steps = 0
+    confidence_bound = UCSG(states, actions, 1e3, 0.01)
 
-        print("action",action)
+    while steps < 1000:
+        
+        steps += 1
+        print("steps: ",steps)
+        if steps < 10:
+            ac_i = 1
+        ac = maxminevi(states, actions, 0.01, 0.01, 10, total_rewards, confidence_bound)
+        next_frame, reward, done, info = env.step(ac)
+        print("reward", reward)
+        print("action",ac)
+        print("action",actions[ac])
         
         next_net = create_network(next_frame,True)
 
@@ -198,28 +223,55 @@ if __name__ == "__main__":
 
 
         
-        # print("states",states)
-        confidence_bound = UCSG(states, action_set, 1e3, 0.01)
+        
 
-        ac_i, action = maxminevi(states, action_set, 0.8, 0.8, 100, total_rewards, confidence_bound)
+        # states, actions, gamma, alpha, I, total_rewards, Pk
+        
 
+        for a in range(len(actions)):
+            if ac == actions[a]:
+                ac_i = a
         vk[st_i, ac_i] =  vk[st_i, ac_i] + 1 #update vk(s,a)
-        print("reward", reward)
+
         total_rewards[st_i,ac_i] += reward.astype(float) # 即時reward
         nk[st_i, ac_i] = max(1,  nk[st_i, ac_i] + 1) #update nk(s,a)
         total_numbers[st_i, ac_i, next_st_i] += 1 #update nk(s, a, s')
 
-        print("vk(s,a): ")
-        print(vk.nonzero()) # (array([0], dtype=int64), array([0], dtype=int64))
+        accu_reward += reward
+        print("accu_reward",accu_reward)
+        if(steps % 100 == 0):
+            print('step:', steps)
+            draw_step.append(steps)
+            draw_reward.append(accu_reward)
+        if(steps % 10 == 0):
+            draw_step_ten.append(steps)
+            draw_reward_ten.append(accu_reward)
 
-        print("total_rewards(s,a): ")
-        print(total_rewards.nonzero())
+    print('accumulate reward:', accu_reward)
 
-        print("nk(s,a): ")
-        print(nk.nonzero())
+    print("steps", draw_step)
+    plt.plot(draw_step,draw_reward)
+    plt.title("UCSG Reward Convergence Rate") # title
+    plt.xlabel("Steps") # y label
+    plt.ylabel("Reward") # x label
+    plt.show()
 
-        print("total_numbers(s,a,s'): ") # (array([  0,   0,   0, ..., 499, 499, 499], dtype=int64), array([ 0,  1,  2, ..., 16, 17, 18], dtype=int64))
-        print(total_numbers.nonzero())
+    plt.plot(draw_step_ten,draw_reward_ten)
+    plt.title("UCSG Reward Convergence Rate") # title
+    plt.xlabel("Steps") # y label
+    plt.ylabel("Reward") # x label
+    plt.show()
+        # print("vk(s,a): ")
+        # print(vk.nonzero()) # (array([0], dtype=int64), array([0], dtype=int64))
+
+        # print("total_rewards(s,a): ")
+        # print(total_rewards.nonzero())
+
+        # print("nk(s,a): ")
+        # print(nk.nonzero())
+
+        # print("total_numbers(s,a,s'): ") # (array([  0,   0,   0, ..., 499, 499, 499], dtype=int64), array([ 0,  1,  2, ..., 16, 17, 18], dtype=int64))
+        # print(total_numbers.nonzero())
 
 
 

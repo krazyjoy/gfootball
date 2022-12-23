@@ -314,14 +314,20 @@ class EasyRewardWrapper(gym.RewardWrapper):
           o['ball_owned_player'] != o['active']):
         continue
 
+
       while (self._collected_checkpoints.get(rew_index, 0) <
              self._num_checkpoints):
-        x = o['left_team'][rew_index][0]
-        if x < -0.5:
-          break
-        reward[rew_index] += self._checkpoint_reward
-        self._collected_checkpoints[rew_index] = (
-            self._collected_checkpoints.get(rew_index, 0) + 1)
+      # print("obs left",o["left_team"])
+      # print("obs right",o["right_team"])
+      # print("rew index", rew_index)
+          x = o['left_team'][rew_index][0]
+          # y = o['right_team'][rew_index][1]
+
+          if x < -0.5:
+            break
+          reward[rew_index] += self._checkpoint_reward
+          self._collected_checkpoints[rew_index] = (
+              self._collected_checkpoints.get(rew_index, 0) + 1)
       
 
       # d = ((o['ball'][0] - 1) ** 2 + o['ball'][1] ** 2) ** 0.5

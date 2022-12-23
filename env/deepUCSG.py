@@ -48,7 +48,7 @@ class NN:
         self.episode_counter = 0
 
         self.actions = np.zeros((5,19))
-        self.states = np.zeros((50000)) # 0~500.00
+        self.states = np.zeros((500)) # 0~500.00
 
         self.vk = np.zeros((len(self.states), len(self.actions))) #vk(s,a)
         self.total_numbers = np.zeros((len(self.states), len(self.actions), len(self.states))) # nk(s,a,s')
@@ -347,7 +347,7 @@ def save_checkpoint(agent):
 if __name__ == "__main__":
 
     
-    env = football_env.create_environment(env_name="5_vs_5", representation='pixels', render = True, 
+    env = football_env.create_environment(env_name="1_vs_1_easy", representation='pixels', render = True, number_of_left_players_agent_controls=1,
         rewards="checkpoints,scoring"
     )
 
