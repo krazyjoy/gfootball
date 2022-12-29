@@ -80,28 +80,37 @@ def UCSG(states, actions, T, delta):
         return tmp
 
 def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共有I個vi
+    
+    if random.random() < 0.15:
+        action_i = random.randint(0,9)
+        print("random action: ",actions[action_i])
+        return actions[action_i]
+    
     v = np.zeros((I, len(states)), dtype = np.int64) # 計算v0 # (100,500)
     print("v shape", v.shape)
     print("pk: ",Pk.shape)
     print("states", states.shape)
     # 計算v1
 
-    ratio = 0.005
+    ratio = 0.05
     for s in range(len(states)):
         Max = -1
         for a in range(len(actions)):
             Sum = sum(Pk[:][s][a])
-            if Sum > Max:
+            if Sum >= Max:
                 Max = Sum
                 Max_a_1 = a
         val = total_rewards[s, Max_a_1] + Max
         v[1][s] = ((1-alpha) * val + alpha * v[0][s]) * ratio
     print("v[1][s]",v[1][s])    
 
-    i = 2
+    i = 1
     print((max(v[i]) - min(v[i-1])) - (min(v[i]) - max(v[i-1]))) # 0
     while ((max(v[i]) - min(v[i-1])) - (min(v[i]) - max(v[i-1]))) <= (1 - alpha) * gamma: 
-
+        i += 1
+        if i == I:
+            i -= 1
+            break
          # 選一個Pk(s,a)讓值最大。Pk(s,a)是一個一維array
         Max_in = -1
         for s in range(len(states)):
@@ -109,7 +118,7 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
                 Sum = 0
                 for next_s in range(len(states)):
                     Sum += Pk[s][a][next_s] * v[i-1][next_s]
-                if Sum > Max_in:
+                if Sum >= Max_in:
                     Max_in = Sum
                     Max_in_Pk_s = s
                     Max_in_Pk_a = a
@@ -119,7 +128,7 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
             for a in range(len(actions)):
                 val = total_rewards[s, a] + Max_in
                
-                if val > Max_out:
+                if val >= Max_out:
                     Max_out = val
                     if st_i == s:
                         Max_out_a = a
@@ -129,10 +138,7 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
             v[i][s] = ((1-alpha) * val + alpha * v[i-1][s]) * ratio
 
     
-        i += 1
-        if i == I:
-            i -= 1
-            break
+       
     print("v[i][s]",v[i][:5])
     try:
         return actions[choose_action]
@@ -162,7 +168,7 @@ if __name__ == "__main__":
     draw_step_ten = []
     draw_reward_ten = []
 
-    states = np.zeros((200)) # 0~500.0
+    states = np.zeros((100)) # 0~500.0
 
     vk = np.zeros((len(states), len(actions)),dtype = np.int64) #vk(s,a)
     total_numbers = np.zeros((len(states), len(actions), len(states)), dtype = np.int64) # nk(s,a,s')
@@ -175,8 +181,14 @@ if __name__ == "__main__":
             rewards="easy,scoring", number_of_left_players_agent_controls = 1
         )
     frame = env.reset()
-    net = create_network(frame, True)
 
+    steps = 0
+    
+    ac_i = random.randint(0,9)
+    print("first action: ",actions[ac_i])
+   
+    frame, reward, done, info = env.step(ac_i)
+    net = create_network(frame, True)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -184,25 +196,25 @@ if __name__ == "__main__":
         #st_i = np.round(net.eval(),1)
         st_i = net.eval(session = sess).astype(int)
         print("st_i: ",st_i)
-        
+        if st_i[0][0] > 100:
+            st_i[0][0] = 100
         sess.close()
-
     all_tensors = st_i
-    ac_i = random.randint(0, len(actions) - 1)
-    steps = 0
     confidence_bound = UCSG(states, actions, 1e3, 0.01)
 
-    while steps < 1000:
+
+    while steps < 600:
+        
+
         
         steps += 1
         print("steps: ",steps)
-        if steps < 10:
-            ac_i = 1
-        ac = maxminevi(states, actions, 0.01, 0.01, 10, total_rewards, confidence_bound)
+
+        ac = maxminevi(states, actions, 0.01, 0.9, 20, total_rewards, confidence_bound)
         next_frame, reward, done, info = env.step(ac)
         print("reward", reward)
         print("action",ac)
-        print("action",actions[ac])
+
         
         next_net = create_network(next_frame,True)
 
@@ -213,6 +225,9 @@ if __name__ == "__main__":
             #next_st_i = np.round(next_net.eval(),1)
             next_st_i = next_net.eval(session = sess).astype(int)
             print("next_st_i: ",next_st_i)
+            if next_st_i[0][0] > 100:
+                next_st_i[0][0] = 100
+            
             sess.close()
 
         all_tensors = tf.concat([all_tensors, next_st_i], axis = 1)
@@ -236,6 +251,8 @@ if __name__ == "__main__":
         total_rewards[st_i,ac_i] += reward.astype(float) # 即時reward
         nk[st_i, ac_i] = max(1,  nk[st_i, ac_i] + 1) #update nk(s,a)
         total_numbers[st_i, ac_i, next_st_i] += 1 #update nk(s, a, s')
+       
+        next_st_i = st_i
 
         accu_reward += reward
         print("accu_reward",accu_reward)
