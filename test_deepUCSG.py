@@ -196,8 +196,8 @@ if __name__ == "__main__":
         #st_i = np.round(net.eval(),1)
         st_i = net.eval(session = sess).astype(int)
         print("st_i: ",st_i)
-        if st_i[0][0] > 100:
-            st_i[0][0] = 100
+        if st_i[0][0] > 99:
+            st_i[0][0] = 99
         sess.close()
     all_tensors = st_i
     confidence_bound = UCSG(states, actions, 1e3, 0.01)
@@ -225,8 +225,8 @@ if __name__ == "__main__":
             #next_st_i = np.round(next_net.eval(),1)
             next_st_i = next_net.eval(session = sess).astype(int)
             print("next_st_i: ",next_st_i)
-            if next_st_i[0][0] > 100:
-                next_st_i[0][0] = 100
+            if next_st_i[0][0] > 99:
+                next_st_i[0][0] = 99
             
             sess.close()
 
