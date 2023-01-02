@@ -8,7 +8,7 @@ import re
 import os
 
 class NN:
-    def __init__(self, env, batch_size = 100, pic_size=(72,96), num_frame_stack = 4,
+    def __init__(self, env, batch_size = 1, pic_size=(72,96,1), num_frame_stack = 1,
                 gamma = 0.95, action_map = None, optimizer_params = None, 
                 network_update_freq = 100,
 
@@ -64,7 +64,9 @@ class NN:
         # env reset:
         first_frame = self.env.reset() # (72,96,3)
         first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY) # (72,96)
-        
+        first_frame = np.expand_dims(first_frame, axis = -1)
+        first_frame = np.reshape(first_frame, (1,72,96,1))
+        print("first frame shape: ", first_frame.shape)
         # create a memory space
         eh.start_new_episode(first_frame)
 
@@ -73,6 +75,7 @@ class NN:
                 action_idx = self.session.run(
                     self.best_action,
                     {self.input_prev_state: eh.current_state()[np.newaxis, ...]}
+                    #{self.input_prev_state: eh.current_state()}
                 )[0]
             else:
                 action_idx = np.random.choice(19)
@@ -94,8 +97,10 @@ class NN:
             total_reward += reward
             frames_in_episode += 1
 
-            observation = cv2.cvtColor(observation, cv2.COLOR_BGR2GRAY)
-            eh.add_experience(observation, action_idx, done, reward)
+            frame = cv2.cvtColor(observation, cv2.COLOR_BGR2GRAY)
+            frame = np.expand_dims(frame, axis = -1)
+            #print("frame shape: ", frame.shape)
+            eh.add_experience(frame, action_idx, done, reward)
 
             if self.do_training:
                 self.global_counter += 1
@@ -126,11 +131,12 @@ class NN:
     
     def build_graph(self):
         """ init inputs for conv2d """
-        # (batach_size, 4, 72, 96)
-        input_dim_with_batch = (self.batch_size, self.num_frame_stack) + self.pic_size
+        # (batch_size, 4, 72, 96)
+        input_dim_with_batch = (self.batch_size,) + self.pic_size
 
-        input_dim_general = (None, self.num_frame_stack) + self.pic_size #　(None, 4, 72, 96)
+        #input_dim_general = (1, self.num_frame_stack) + self.pic_size #　(None, 4, 72, 96)
 
+        input_dim_general = (None, ) + self.pic_size
         self.input_prev_state = tf.placeholder(tf.float16, input_dim_general, "prev_state")
 
         self.input_next_state = tf.placeholder(tf.float16, input_dim_with_batch, "next_state")
@@ -198,8 +204,8 @@ class NN:
             wr = None
         
         # 將channel 放在最後一行
-        input_t = tf.transpose(input, [0,2,3,1])
-
+        #input_t = tf.transpose(input, [0,2,3,1])
+        input_t = input
         net = slim.conv2d(input_t, 8, (7, 7), data_format="NHWC",
             activation_fn=tf.nn.relu, stride=3, weights_regularizer=wr, trainable=trainable)
       
@@ -240,22 +246,22 @@ class NN:
         #  key: "reward", "prev_state", "next_state", "actions", "done_mask" 
         #  value: batch["reward"], ...
         fd1 = {ph:batch[k] for ph,k in fd.items()}
-
+        print("fd1", fd1)
         """ CALCULATE PK """
         # vk:
         # total_numbers:
         # total_rewards:
         # s
         #update optimizer, with optimizer.minimize(reg_loss + training_loss)
-        self.session.run([self.train_op], fd1) 
+        self.session.run([self.train_op], fd1.values()) 
         """ output: VI """
 
         #action = maxminevi()
         #return action
 
 # to start training from scratch:
-load_checkpoint = True
-checkpoint_path = "data/checkpoint02"
+load_checkpoint = False
+checkpoint_path = '..\\data'
 train_episodes = 25
 save_freq_episodes = 1
 

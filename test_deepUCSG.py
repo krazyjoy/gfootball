@@ -74,17 +74,17 @@ def UCSG(states, actions, T, delta):
         tmp = confidence_bound_1 + confidence_bound_2_2
         # print('confidencebound1', confidencse_bound_1)
         print("tmp", tmp.shape)
-        # print('confidencebound2', confidence_bound_2_2)
+        print('confidencebound2', confidence_bound_2_2)
         #confidencebound = np.array([ (tmp[i]) for i in range(0, len(tmp)) if tmp[i] not in tmp[:i] ]) # (1,len(action_set),n_states)
         #print("confidencebond", confidence_bound.shape)
-        return tmp
+        return confidence_bound_2_2
 
 def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共有I個vi
     
-    if random.random() < 0.15:
-        action_i = random.randint(0,9)
-        print("random action: ",actions[action_i])
-        return actions[action_i]
+    # if random.random() < 0.15:
+    #     action_i = random.randint(0,9)
+    #     print("random action: ",actions[action_i])
+    #     return actions[action_i]
     
     v = np.zeros((I, len(states)), dtype = np.int64) # 計算v0 # (100,500)
     print("v shape", v.shape)
@@ -92,7 +92,7 @@ def maxminevi(states, actions, gamma, alpha, I, total_rewards, Pk): # I是總共
     print("states", states.shape)
     # 計算v1
 
-    ratio = 0.05
+    ratio = 0.005
     for s in range(len(states)):
         Max = -1
         for a in range(len(actions)):
@@ -200,17 +200,17 @@ if __name__ == "__main__":
             st_i[0][0] = 99
         sess.close()
     all_tensors = st_i
-    confidence_bound = UCSG(states, actions, 1e3, 0.01)
+    confidence_bound = UCSG(states, actions, 3e3, 0.01)
 
 
-    while steps < 600:
+    while steps < 1500:
         
 
         
         steps += 1
         print("steps: ",steps)
 
-        ac = maxminevi(states, actions, 0.01, 0.9, 20, total_rewards, confidence_bound)
+        ac = maxminevi(states, actions, 0.01, 0.7, 100, total_rewards, confidence_bound)
         next_frame, reward, done, info = env.step(ac)
         print("reward", reward)
         print("action",ac)

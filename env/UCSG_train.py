@@ -205,7 +205,7 @@ class Network():
             # Downscale.
             #print("num_channels", num_ch)
             #print("num_blocks",num_blocks)
-            conv_out = tf.nn.conv2d(num_ch, 4, stride=1, padding='SAME')(conv_out) # 4th dim = num_ch
+            conv_out = snt.Conv2D(num_ch, 4, stride=1, padding='SAME')(conv_out) # 4th dim = num_ch
             #print(conv_out.shape.as_list()) # [720, 1280, 3, 16], [720, 640, 2, 16], [720, 320, 1, 32]
             conv_out = tf.nn.pool(
                 conv_out,
@@ -285,8 +285,8 @@ class Network():
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
     def store_transition(self, s, a, r, s_):
-        #s = s.eval(session = self.sess)
-        #s_ = s_.eval(session = self.sess)
+        s = s.eval(session = self.sess)
+        s_ = s_.eval(session = self.sess)
         #print("type s", type(s))
         #print("type s'", type(s_))
         if not hasattr(self, 'memory_counter'):
