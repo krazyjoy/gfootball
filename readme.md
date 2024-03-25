@@ -11,7 +11,7 @@ vk = np.zeros((len(states), len(actions)))
 
 $n_k(s,a)$: the number of occurrences of $(s, a)$ before $k^{th}$ phase, if has not seen before set it to 1
 
-$n_k(s,a) = max\{1, \Sigma_{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}}$
+$n_k(s,a) = \max{1, \Sigma_{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}}$
 
 ```
 nk = np.zeros((len(states), len(actions)))
