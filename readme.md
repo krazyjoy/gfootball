@@ -11,7 +11,7 @@ vk = np.zeros((len(states), len(actions)))
 
 $n_k(s,a)$: the number of occurrences of $(s, a)$ before $k^{th}$ phase, if has not seen before set it to 1
 
-$n_k(s,a) = max\{1, \sum_{{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}}$
+$n_k(s,a) = max\{1, \Sigma_{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}}$
 
 ```
 nk = np.zeros((len(states), len(actions)))
@@ -20,7 +20,7 @@ nk = np.zeros((len(states), len(actions)))
 
 $n_k(s,a,s')$ :  use previous phase results to predict the next state, it looks at the number of s' transferred from $(s,a)$ from experience up to $k$ phase
 
-$n_k(s,a, s') = \sum_{{\tau =1 }^{t_k-1}{\Pi(s_\tau, a_\tau, s_{\tau+1})} = (s,a,s')$
+$n_k(s,a, s') = \Sigma_{\tau =1 }^{t_k-1}{\Pi(s_\tau, a_\tau, s_{\tau+1})} = (s,a,s')$
 
 ```
 total_numbers = np.zeros((len(states), len(actions), len(states)))
