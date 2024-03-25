@@ -12,8 +12,9 @@ vk = np.zeros((len(states), len(actions)))
 $n_k(s,a)$: the number of occurrences of $(s, a)$ before $k^{th}$ phase, if has not seen before set it to 1
 
 <div style="text-align:center">
-  <img src="https://latex.codecogs.com/svg.latex?n_k(s,a) = \max \left\{ \begin{array}{c} 1 \\ \sum_{\tau=1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)} \end{array} \right\}" alt="n_k(s,a) = max {1, sum}" />
+  <img src="https://latex.codecogs.com/svg.latex?n_k(s,a) = \max \{1, \sum_{\tau=1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)} \}" alt="n_k(s,a) = max {1, sum}" />
 </div>
+
 
 
 $$
