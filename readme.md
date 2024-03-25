@@ -1,4 +1,121 @@
 # Playing Soccer Games as Stochastic Games through Online Reinforcement Learning
+
+
+$v_k(s,a)$ : the occurrence of $(s, a)$ at phase $k$
+$$
+vk(s,a) = 0 
+$$
+```
+vk = np.zeros((len(states), len(actions)))
+```
+
+$n_k(s,a)$: the number of occurrences of $(s, a)$ before $k^{th}$ phase, if has not seen before set it to 1
+
+$$
+n_k(s,a) = max 
+\left\{\begin{array}{c} 
+1, \\
+\sum_{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}
+\end{array} \right\}
+$$
+
+```
+nk = np.zeros((len(states), len(actions)))
+```
+
+
+$n_k(s,a,s')$ :  use previous phase results to predict the next state, it looks at the number of s' transferred from $(s,a)$ from experience up to $k$ phase
+
+$$
+n_k(s,a, s') = 
+\sum_{\tau =1 }^{t_k-1}{\Pi(s_\tau, a_\tau, s_{\tau+1})} \\
+= (s,a,s')
+
+$$
+
+```
+total_numbers = np.zeros((len(states), len(actions), len(states)))
+```
+
+$\hat{p_k}(s'| s,a)$:  transfer probability matrix
+
+$$
+\hat{p_k}(s'| s,a) = \frac{n_k(s,a,s')}{n_k(s,a)} 
+\quad \forall s, a, s'
+$$
+
+- reform $n_k(s,a)$ to same shape as $n_k(s,a,s')$
+- clip array within the range of `[1, None]`
+```
+p_hat = total_numbers/np.clip(nk.reshape(len(states), len(actions), 1), 1, None)	
+```
+
+$M_k$ : Model at phase $k$, is equal to a set of $\tilde{M}$, where $\tilde{M}$ is all probabilities transfer from $(s,a)$ for all s, a
+$$
+M_k = \left\{\begin{array}{c}
+\tilde{M}: \forall s,a, \quad \tilde{p}(\cdot | s,a)  \in P_k(s,a)
+\end{array} \right\}
+$$
+
+$P_k(s,a)$ : the union of confidence 1 and confidence 2
+
+
+
+```
+conf1 = np.sqrt((2*len(states)*np.log(1/delta)/len(states)))+ p_hat
+conf2 = np.clip(np.sqrt(np.log(6/delta_1)/(2*len(states)))+p_hat, None, np.sqrt(2*p_hat*(1-p_hat)*np.log(6/delta_1)/len(states)) + 7*np.log(6/delta_1)/(3*(len(states)-1))+p_hat)
+```
+
+
+$MAXIMIN-EVI(M_k, \gamma_k)$
+
+threshold of while loop: 
+- a. the difference between maximum value at time $i$   and minimum value at time $i-1, \forall$ states
+- b. the difference between minimum value at time $i$ and maximum value at time $i-1, \forall$ states
+- terminates when $a-b <= (1- \alpha) * \gamma$ 
+
+$\forall s, a$,  sum all the transfer probability with the previous value arrived at next state over all possible the next state $s'$ 
+- **policy: choose Pk(s,a) such that the value is maximize**
+```
+Max_in = -1
+for s in range(len(states)):
+	for a in range(len(actions)):
+		Sum = 0
+	for next_s in range(len(states)):
+		Sum += Pk[s][a][next_s] * v[i-1][next_s]
+	if Sum >= Max_in: 
+		Max_in = Sum
+		Max_in_Pk_s = s
+		Max_in_Pk_a = a
+```
+
+for each state $s$, calculate the max value then **select an action if value for the state interested has increased**
+
+```
+for s in range(len(states)):
+	Max_out = -1
+	for a in range(len(actions)):
+		val = total_rewards[s,a] + Max_in
+		if val >= Max_out:
+			Max_out = val
+			if st_i == s:
+				Max_out_a = a
+				choose_action = Max_out_a
+	v[i][s] = (1-alpha) * val + alpha * v[i-1][s]
+```
+
+
+
+return action: in case the value stored is not sufficient and does not enter while loop, directly returns a random action
+```
+ try:
+        return actions[choose_action]
+except: # 一開始可能不會進到前面的while迴圈，所以直接回傳random的action
+        print('!')
+        action_i = random.randint(0, len(actions)-1)
+        return actions[action_i]
+```
+
 ##  研究動機與問題
 強化學習（Reinforcement Learning）指的是agent與環境不斷的互動，並從中學習以取得最大的預期報酬。隨著研究發展，強化學習被應用在許多領域上，包括電子競技，機器人控制，工業自動化。近年來，強化學習在許多電玩遊戲中展現了能與頂尖選手競爭的能力，例如戰勝世界棋王的AlphaGo、 1V1 單挑戰勝《Dota 2》前世界冠軍的OpenAI。  
 調查指出，足球的估計球迷人數為35億，居所有運動之冠，其商業價值更是高達約250億美元 。足球的熱門也帶動了相關產業的發展，例如《FIFA》系列是足球模擬器遊戲的一種，是目前世界上最暢銷的體育電玩遊戲系列。Google團隊在2019年推出了Google Research Football (Kurach et al., 2019)[1]，以熱門足球電玩遊戲為基礎，提供agent在基於物理的3D模擬器下進行足球比賽並學習的環境，其中agent可以控制自己隊伍的一個或所有足球運動員，學習如何在他們之間傳球，並設法克服對手的防守，以求得進球。以Google Research Football 為強化學習環境，本研究將會聚焦在足球賽局的應用，並利用隨機博弈模擬兩支隊伍在球場上的互動。  
