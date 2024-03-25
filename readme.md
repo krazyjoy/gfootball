@@ -11,10 +11,7 @@ vk = np.zeros((len(states), len(actions)))
 
 $n_k(s,a)$: the number of occurrences of $(s, a)$ before $k^{th}$ phase, if has not seen before set it to 1
 
-<div style="text-align:center">
-  <img src="https://latex.codecogs.com/svg.latex?n_k(s,a) = \max \{1, \sum_{\tau=1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)} \}" alt="n_k(s,a) = max {1, sum}" />
-</div>
-
+$n_k(s,a) = max\{1, \sum_{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}}$
 
 ```
 nk = np.zeros((len(states), len(actions)))
@@ -23,9 +20,7 @@ nk = np.zeros((len(states), len(actions)))
 
 $n_k(s,a,s')$ :  use previous phase results to predict the next state, it looks at the number of s' transferred from $(s,a)$ from experience up to $k$ phase
 
-$n_k(s,a, s') = 
-\sum_{\tau =1 }^{t_k-1}{\Pi(s_\tau, a_\tau, s_{\tau+1})} \\
-= (s,a,s')$
+$n_k(s,a, s') = \sum_{\tau =1 }^{t_k-1}{\Pi(s_\tau, a_\tau, s_{\tau+1})} = (s,a,s')$
 
 ```
 total_numbers = np.zeros((len(states), len(actions), len(states)))
@@ -37,16 +32,15 @@ $\hat{p_k}(s'| s,a) = \frac{n_k(s,a,s')}{n_k(s,a)} \quad \forall s, a, s'$
 
 - reform $n_k(s,a)$ to same shape as $n_k(s,a,s')$
 - clip array within the range of `[1, None]`
+  
 ```
 p_hat = total_numbers/np.clip(nk.reshape(len(states), len(actions), 1), 1, None)	
 ```
 
 $M_k$ : Model at phase $k$, is equal to a set of $\tilde{M}$, where $\tilde{M}$ is all probabilities transfer from $(s,a)$ for all s, a
-$$
-M_k = \left\{\begin{array}{c}
-\tilde{M}: \forall s,a, \quad \tilde{p}(\cdot | s,a)  \in P_k(s,a)
-\end{array} \right\}
-$$
+
+$M_k = { \tilde{M}: \forall s,a, \quad \tilde{p}(\cdot | s,a)  \in P_k(s,a)}$
+
 
 $P_k(s,a)$ : the union of confidence 1 and confidence 2
 
