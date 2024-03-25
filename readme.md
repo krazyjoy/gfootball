@@ -16,15 +16,6 @@ $n_k(s,a)$: the number of occurrences of $(s, a)$ before $k^{th}$ phase, if has 
 </div>
 
 
-
-$$
-n_k(s,a) = max 
-\left\{\begin{array}{c} 
-1, \\
-\sum_{\tau = 1}^{t_k-1} \Pi_{(s_\tau, a_\tau) = (s,a)}
-\end{array} \right\}
-$$
-
 ```
 nk = np.zeros((len(states), len(actions)))
 ```
@@ -32,12 +23,9 @@ nk = np.zeros((len(states), len(actions)))
 
 $n_k(s,a,s')$ :  use previous phase results to predict the next state, it looks at the number of s' transferred from $(s,a)$ from experience up to $k$ phase
 
-$$
-n_k(s,a, s') = 
+$n_k(s,a, s') = 
 \sum_{\tau =1 }^{t_k-1}{\Pi(s_\tau, a_\tau, s_{\tau+1})} \\
-= (s,a,s')
-
-$$
+= (s,a,s')$
 
 ```
 total_numbers = np.zeros((len(states), len(actions), len(states)))
@@ -45,10 +33,7 @@ total_numbers = np.zeros((len(states), len(actions), len(states)))
 
 $\hat{p_k}(s'| s,a)$:  transfer probability matrix
 
-$$
-\hat{p_k}(s'| s,a) = \frac{n_k(s,a,s')}{n_k(s,a)} 
-\quad \forall s, a, s'
-$$
+$\hat{p_k}(s'| s,a) = \frac{n_k(s,a,s')}{n_k(s,a)} \quad \forall s, a, s'$
 
 - reform $n_k(s,a)$ to same shape as $n_k(s,a,s')$
 - clip array within the range of `[1, None]`
